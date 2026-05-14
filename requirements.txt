@@ -1,0 +1,9 @@
+streamlit>=1.57.0
+streamlit-webrtc>=0.64.6
+opencv-python-headless>=4.11.0
+numpy>=1.26.4
+pandas>=3.0.1
+altair>=6.1.0
+reportlab>=4.4.9
+plotly>=6.0.0
+ultralytics>=8.3.0

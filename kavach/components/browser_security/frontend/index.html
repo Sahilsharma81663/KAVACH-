@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kavach Browser Security</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: transparent;
+        color: #0f172a;
+      }
+
+      .panel {
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 14px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+        padding: 14px;
+      }
+
+      .heading {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      .subtle {
+        color: #475569;
+        font-size: 12px;
+        margin-bottom: 12px;
+        line-height: 1.45;
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 12px;
+      }
+
+      .value {
+        color: #0f766e;
+      }
+
+      button {
+        width: 100%;
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        color: white;
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 10px 18px rgba(37, 99, 235, 0.2);
+      }
+
+      button:hover {
+        filter: brightness(1.03);
+      }
+
+      button:disabled {
+        cursor: default;
+        filter: none;
+        opacity: 0.72;
+        box-shadow: none;
+      }
+
+      .status {
+        color: #b45309;
+      }
+
+      .status.ok {
+        color: #15803d;
+      }
+    </style>
+    <script>
+      (function bootstrapStreamlitBridge() {
+        if (window.Streamlit) {
+          return;
+        }
+
+        const renderListeners = new Set();
+        const RENDER_EVENT = "streamlit:render";
+
+        function postToParent(payload) {
+          window.parent.postMessage(
+            {
+              isStreamlitMessage: true,
+              ...payload,
+            },
+            "*"
+          );
+        }
+
+        function emitRender(detail) {
+          const renderEvent = new CustomEvent(RENDER_EVENT, { detail });
+          renderListeners.forEach((listener) => {
+            try {
+              listener(renderEvent);
+            } catch (error) {
+              console.error("Render listener failed", error);
+            }
+          });
+        }
+
+        window.addEventListener("message", (event) => {
+          const payload = event.data;
+          if (!payload || payload.type !== RENDER_EVENT) {
+            return;
+          }
+          emitRender(payload);
+        });
+
+        window.Streamlit = {
+          RENDER_EVENT,
+          events: {
+            addEventListener(type, listener) {
+              if (type === RENDER_EVENT && typeof listener === "function") {
+                renderListeners.add(listener);
+              }
+            },
+            removeEventListener(type, listener) {
+              if (type === RENDER_EVENT) {
+                renderListeners.delete(listener);
+              }
+            },
+          },
+          setComponentReady() {
+            postToParent({
+              type: "streamlit:componentReady",
+              apiVersion: 1,
+            });
+          },
+          setComponentValue(value) {
+            postToParent({
+              type: "streamlit:setComponentValue",
+              value,
+              dataType: "json",
+            });
+          },
+          setFrameHeight(height) {
+            postToParent({
+              type: "streamlit:setFrameHeight",
+              height:
+                typeof height === "number"
+                  ? height
+                  : document.documentElement.scrollHeight,
+            });
+          },
+        };
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="panel">
+      <div class="heading">Browser Security Monitor</div>
+      <div class="subtle">
+        Fullscreen mode and browser focus are watched during the active exam session.
+      </div>
+      <div class="row">
+        <span>Fullscreen status</span>
+        <span id="fullscreen-status" class="value">Inactive</span>
+      </div>
+      <div class="row">
+        <span>Recent event</span>
+        <span id="event-status" class="status ok">No issues</span>
+      </div>
+      <button id="fullscreen-button" type="button">Enter Secure Fullscreen</button>
+    </div>
+
+    <script>
+      const fullscreenButton = document.getElementById("fullscreen-button");
+      const fullscreenStatus = document.getElementById("fullscreen-status");
+      const eventStatus = document.getElementById("event-status");
+      const state = {
+        sessionId: null,
+        active: false,
+        autoRequest: true,
+        autoAttempted: false,
+        eventId: 0,
+        listenersAttached: false,
+        secureArmed: false,
+      };
+
+      function updateFrameHeight() {
+        Streamlit.setFrameHeight(176);
+      }
+
+      function parentDocument() {
+        try {
+          if (window.parent && window.parent !== window && window.parent.document) {
+            return window.parent.document;
+          }
+        } catch (error) {
+          return null;
+        }
+        return null;
+      }
+
+      function topDocument() {
+        try {
+          if (window.top && window.top.document) {
+            return window.top.document;
+          }
+        } catch (error) {
+          return null;
+        }
+        return null;
+      }
+
+      function fullscreenDocuments() {
+        return [document, parentDocument(), topDocument()].filter(Boolean);
+      }
+
+      function isFullscreen() {
+        return fullscreenDocuments().some((candidate) => Boolean(candidate.fullscreenElement));
+      }
+
+      function fullscreenTarget() {
+        const candidates = [];
+
+        try {
+          const topDoc = topDocument();
+          if (topDoc?.documentElement) {
+            candidates.push(topDoc.documentElement);
+          }
+        } catch (error) {
+          console.debug("Top document unavailable", error);
+        }
+
+        try {
+          const parentDoc = parentDocument();
+          if (parentDoc?.documentElement) {
+            candidates.push(parentDoc.documentElement);
+          }
+        } catch (error) {
+          console.debug("Parent document unavailable", error);
+        }
+
+        if (window.frameElement) {
+          candidates.push(window.frameElement);
+        }
+        candidates.push(document.documentElement);
+
+        return candidates.find((candidate) => typeof candidate?.requestFullscreen === "function") || null;
+      }
+
+      function playWarningTone() {
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          const context = new AudioContext();
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          oscillator.type = "square";
+          oscillator.frequency.value = 880;
+          gain.gain.value = 0.02;
+          oscillator.connect(gain);
+          gain.connect(context.destination);
+          oscillator.start();
+          setTimeout(() => {
+            oscillator.stop();
+            context.close();
+          }, 180);
+        } catch (error) {
+          console.debug("Audio warning skipped", error);
+        }
+      }
+
+      function updateUi() {
+        const activeFullscreen = isFullscreen();
+        if (activeFullscreen) {
+          fullscreenStatus.textContent = "Active";
+          fullscreenButton.textContent = "Secure Mode Active";
+        } else if (state.active) {
+          fullscreenStatus.textContent = state.secureArmed ? "Exited" : "Waiting for start";
+          fullscreenButton.textContent = "Start Secure Mode";
+        } else {
+          fullscreenStatus.textContent = "Idle";
+          fullscreenButton.textContent = "Secure Mode Idle";
+        }
+        fullscreenButton.disabled = !state.active;
+        fullscreenStatus.className = "value";
+      }
+
+      function emitEvent(eventType, message) {
+        if (!state.active) {
+          return;
+        }
+        state.eventId += 1;
+        eventStatus.textContent = message;
+        eventStatus.className = "status";
+        playWarningTone();
+        Streamlit.setComponentValue({
+          event_id: state.eventId,
+          event_type: eventType,
+          message,
+          fullscreen_active: isFullscreen(),
+          session_id: state.sessionId,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      function attachListeners() {
+        if (state.listenersAttached) {
+          return;
+        }
+        state.listenersAttached = true;
+
+        const onFullscreenChange = () => {
+          updateUi();
+          if (!state.active) {
+            return;
+          }
+          if (!isFullscreen() && state.secureArmed) {
+            emitEvent("fullscreen_exit", "Fullscreen mode exited");
+          } else {
+            state.secureArmed = true;
+            eventStatus.textContent = "Fullscreen restored";
+            eventStatus.className = "status ok";
+          }
+        };
+
+        const onVisibilityChange = () => {
+          if (fullscreenDocuments().some((candidate) => candidate.hidden)) {
+            emitEvent("tab_switch", "Browser tab lost focus");
+          }
+        };
+
+        fullscreenDocuments().forEach((candidate) => {
+          candidate.addEventListener("fullscreenchange", onFullscreenChange);
+          candidate.addEventListener("visibilitychange", onVisibilityChange);
+        });
+
+        window.addEventListener("blur", () => {
+          emitEvent("tab_switch", "Window focus lost");
+        });
+      }
+
+      async function enterFullscreen() {
+        const target = fullscreenTarget();
+        if (!target || !target.requestFullscreen) {
+          throw new Error("Fullscreen target is unavailable.");
+        }
+        await target.requestFullscreen();
+        state.secureArmed = true;
+        updateUi();
+        eventStatus.textContent = "Secure mode active";
+        eventStatus.className = "status ok";
+      }
+
+      fullscreenButton.addEventListener("click", () => {
+        enterFullscreen().catch((error) => {
+          console.debug("Fullscreen request failed", error);
+          eventStatus.textContent = "Browser blocked fullscreen. Click again from the main exam tab.";
+          eventStatus.className = "status";
+        });
+      });
+
+      function onRender(event) {
+        const args = event.detail.args || {};
+        state.sessionId = args.sessionId || null;
+        state.active = Boolean(args.active);
+        state.autoRequest = args.autoRequest !== false;
+        const prompt = args.prompt || "Most browsers require one student click before fullscreen can start.";
+        document.querySelector(".subtle").textContent = prompt;
+        updateUi();
+        attachListeners();
+        if (!state.active) {
+          state.autoAttempted = false;
+          state.secureArmed = false;
+          eventStatus.textContent = "Monitoring idle";
+          eventStatus.className = "status ok";
+        } else if (state.autoRequest && !state.autoAttempted && !isFullscreen()) {
+          state.autoAttempted = true;
+          queueMicrotask(() => {
+            enterFullscreen().catch((error) => {
+              console.debug("Automatic fullscreen request failed", error);
+              updateUi();
+              eventStatus.textContent = "Click Start Secure Mode to allow fullscreen.";
+              eventStatus.className = "status";
+            });
+          });
+        }
+        updateFrameHeight();
+      }
+
+      Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
+      Streamlit.setComponentReady();
+      updateFrameHeight();
+    </script>
+  </body>
+</html>
