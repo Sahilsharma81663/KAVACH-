@@ -29,7 +29,6 @@ from kavach.config import (
     APP_SUBTITLE,
     APP_TITLE,
     HERO_IMAGE_PATH,
-    RTC_CONFIGURATION,
     SECURE_ROOM_IMAGE_PATH,
 )
 from kavach.database import (
@@ -75,6 +74,7 @@ from kavach.ui import (
     section_banner,
 )
 from kavach.vision import decode_uploaded_image, detect_faces, extract_primary_face, save_face_assets, verify_face
+from kavach.webrtc import rtc_configuration_status, resolved_rtc_configuration
 
 try:  # pragma: no cover - optional dependency
     px = import_optional_module("plotly.express")
@@ -637,12 +637,13 @@ def render_exam_console_page() -> None:
 
         st.subheader("Live Webcam Monitoring")
         st.caption("The camera feed is sampled a little more gently here so live monitoring stays responsive during the exam.")
+        st.caption(rtc_configuration_status())
         monitor = get_monitor(session_id)
         if WEBRTC_AVAILABLE and webrtc_streamer and WebRtcMode:
             webrtc_streamer(
                 key=f"webrtc-monitor-{session_id}",
                 mode=WebRtcMode.SENDRECV,
-                rtc_configuration=RTC_CONFIGURATION,
+                rtc_configuration=resolved_rtc_configuration(),
                 media_stream_constraints={
                     "video": {
                         "width": {"ideal": 960},
@@ -660,6 +661,8 @@ def render_exam_console_page() -> None:
                 "Live WebRTC monitoring is unavailable in this runtime. "
                 "Fallback frame analysis is enabled instead."
             )
+            if WEBRTC_ERROR:
+                st.caption(f"WebRTC import detail: {WEBRTC_ERROR}")
             st.caption("The app switched to still-frame analysis mode for this runtime.")
             snapshot = st.camera_input("Capture Monitoring Frame")
             if st.button("Analyze Captured Frame", width="stretch"):
