@@ -118,24 +118,43 @@ def init_database() -> None:
     seed_defaults()
 
 
+# def seed_defaults() -> None:
+#     existing_admin = get_admin_by_username(ADMIN_DEFAULTS["username"])
+#     if not existing_admin:
+#         now = utc_now()
+#         with closing(get_connection()) as connection:
+#             connection.execute(
+#                 """
+#                 INSERT INTO admins (username, password_hash, name, created_at)
+#                 VALUES (?, ?, ?, ?)
+#                 """,
+#                 (
+#                     ADMIN_DEFAULTS["username"],
+#                     hash_password(ADMIN_DEFAULTS["password"]),
+#                     ADMIN_DEFAULTS["name"],
+#                     now,
+#                 ),
+#             )
+#             connection.commit()
+
 def seed_defaults() -> None:
-    existing_admin = get_admin_by_username(ADMIN_DEFAULTS["username"])
-    if not existing_admin:
-        now = utc_now()
-        with closing(get_connection()) as connection:
-            connection.execute(
-                """
-                INSERT INTO admins (username, password_hash, name, created_at)
-                VALUES (?, ?, ?, ?)
-                """,
-                (
-                    ADMIN_DEFAULTS["username"],
-                    hash_password(ADMIN_DEFAULTS["password"]),
-                    ADMIN_DEFAULTS["name"],
-                    now,
-                ),
-            )
-            connection.commit()
+    now = utc_now()
+    with closing(get_connection()) as connection:
+        # 'INSERT OR IGNORE' handles the check and insert in one single step.
+        # If the username already exists, it simply does nothing instead of crashing.
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO admins (username, password_hash, name, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                ADMIN_DEFAULTS["username"],
+                hash_password(ADMIN_DEFAULTS["password"]),
+                ADMIN_DEFAULTS["name"],
+                now,
+            ),
+        )
+        connection.commit()
 
     existing_exam = fetch_one("SELECT id FROM exams LIMIT 1")
     if not existing_exam:
