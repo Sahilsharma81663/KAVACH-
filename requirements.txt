@@ -8,3 +8,4 @@ plotly>=5.18.0
 twilio
 ultralytics
 opencv-python-headless
+tornado
