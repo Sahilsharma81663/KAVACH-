@@ -6,5 +6,5 @@ pandas>=2.2.0,<3.0.0
 altair>=5.0.0
 reportlab>=4.0.0
 plotly>=5.18.0
-ultralytics
+ultralytics-opencv-headless
 twilio
