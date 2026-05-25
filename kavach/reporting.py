@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -11,6 +10,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from kavach.config import REPORTS_DIR
+from kavach.time_utils import display_now, format_display_timestamp
 
 
 def _table(data: list[list[str]], column_widths: list[float]) -> Table:
@@ -41,7 +41,7 @@ def build_session_report_pdf(bundle: dict) -> bytes:
         Paragraph("Kavach Session Report", styles["Title"]),
         Spacer(1, 6),
         Paragraph(
-            f"Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"Generated at {format_display_timestamp(display_now(), include_timezone_label=True)}",
             styles["BodyText"],
         ),
         Spacer(1, 12),
@@ -56,8 +56,8 @@ def build_session_report_pdf(bundle: dict) -> bytes:
         ["Exam", session["exam_title"]],
         ["Subject", session["subject"]],
         ["Status", session["status"].title()],
-        ["Start Time", session["start_time"]],
-        ["End Time", session["end_time"] or "In Progress"],
+        ["Start Time", format_display_timestamp(session["start_time"])],
+        ["End Time", format_display_timestamp(session["end_time"])],
         ["Suspicion Score", str(session["suspicion_score"])],
         ["Rule Based Risk", session["risk_level"]],
         ["ML Risk", f'{session["ml_risk_level"]} ({session["ml_confidence"]:.0%})'],
@@ -75,7 +75,7 @@ def build_session_report_pdf(bundle: dict) -> bytes:
         for alert in alerts:
             alert_rows.append(
                 [
-                    alert["created_at"],
+                    format_display_timestamp(alert["created_at"]),
                     alert["alert_type"].replace("_", " ").title(),
                     str(alert["points"]),
                     alert["message"],
@@ -95,7 +95,6 @@ def build_session_report_pdf(bundle: dict) -> bytes:
 
 def save_report(session_id: int, report_bytes: bytes) -> str:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    target = REPORTS_DIR / f"session_{session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    target = REPORTS_DIR / f"session_{session_id}_{display_now().strftime('%Y%m%d_%H%M%S')}.pdf"
     target.write_bytes(report_bytes)
     return str(target)
-

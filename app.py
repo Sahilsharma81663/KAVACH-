@@ -60,6 +60,7 @@ from kavach.database import (
 )
 from kavach.monitoring import MonitorVideoProcessor, SessionMonitor, phone_detector_status, refresh_session_ml_assessment
 from kavach.reporting import build_session_report_pdf, save_report
+from kavach.time_utils import format_display_timestamp
 from kavach.ui import (
     friendly_dataframe,
     inject_global_styles,
@@ -134,12 +135,7 @@ def hero_panel() -> None:
 
 
 def format_timestamp(value: str | None) -> str:
-    if not value:
-        return "In Progress"
-    cleaned = str(value).replace("T", " ")
-    if "+" in cleaned:
-        cleaned = cleaned.split("+", maxsplit=1)[0]
-    return cleaned
+    return format_display_timestamp(value)
 
 
 def format_student_rows(rows: list[dict]) -> list[dict]:

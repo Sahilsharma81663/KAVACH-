@@ -547,7 +547,7 @@ def list_saved_reports() -> list[dict[str, Any]]:
             {
                 "name": file_path.name,
                 "path": str(file_path),
-                "created_at": datetime.fromtimestamp(file_path.stat().st_mtime).isoformat(
+                "created_at": datetime.fromtimestamp(file_path.stat().st_mtime, timezone.utc).isoformat(
                     timespec="seconds"
                 ),
                 "size_kb": round(file_path.stat().st_size / 1024, 1),
